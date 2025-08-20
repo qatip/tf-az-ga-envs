@@ -29,6 +29,7 @@ jobs:
       ENV: ${{ inputs.env }}
       TF_IN_AUTOMATION: true
       ARM_USE_OIDC: true
+      TF_VAR_environment: ${{ inputs.env }} 
 
     steps:
       - uses: actions/checkout@v4
