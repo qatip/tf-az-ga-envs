@@ -12,3 +12,12 @@ variable "rg_name" {
   type    = string
   default = "rg-demo"
 }
+
+variable "environment" {
+  type = string
+}
+
+variable "common_tags" {
+  type    = map(string)
+  default = {}
+}
