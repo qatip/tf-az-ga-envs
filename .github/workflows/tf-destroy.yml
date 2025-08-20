@@ -1,0 +1,69 @@
+name: tf-destroy
+
+on:
+  workflow_dispatch:
+    inputs:
+      env:
+        type: choice
+        description: "Environment to destroy"
+        options: [dev, test, prod]
+        default: dev
+      confirm:
+        description: "Type DESTROY-<env> to confirm (e.g., DESTROY-dev)"
+        required: true
+        default: "NO"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  destroy:
+    # hard guard: only run if the confirmation matches exactly
+    if: ${{ inputs.confirm == format('DESTROY-{0}', inputs.env) }}
+
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.env }}   # picks env-scoped secrets/vars
+
+    concurrency:
+      group: terraform-${{ inputs.env }}
+      cancel-in-progress: true
+
+    env:
+      ENV: ${{ inputs.env }}
+      TF_IN_AUTOMATION: true
+      ARM_USE_OIDC: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform init (per-env state key)
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ vars.STATE_RG }}" \
+            -backend-config="storage_account_name=${{ vars.STATE_STORAGE }}" \
+            -backend-config="container_name=${{ vars.STATE_CONTAINER }}" \
+            -backend-config="key=${ENV}.tfstate"
+
+      - name: Terraform destroy
+        env:
+          TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: terraform destroy -auto-approve -var-file="${ENV}.tfvars"
+
+      # Optional: also delete the state blob after destroy (usually you keep it)
+      # - name: Delete state blob (optional)
+      #   run: |
+      #     az storage blob delete \
+      #       --container-name "${{ vars.STATE_CONTAINER }}" \
+      #       --name "${ENV}.tfstate" \
+      #       --account-name "${{ vars.STATE_STORAGE }}" \
+      #       --auth-mode login || true
