@@ -3,7 +3,8 @@ resource "azurerm_resource_group" "demo" {
   location = var.location
   tags = merge(
     {
-      Environment = var.environment
+      Environment = var.environment,
+      Comment = "Change1"
     },
     var.common_tags
   )
