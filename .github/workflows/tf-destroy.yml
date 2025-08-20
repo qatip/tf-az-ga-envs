@@ -44,6 +44,7 @@ jobs:
       ENV: ${{ matrix.env }}
       TF_IN_AUTOMATION: true
       ARM_USE_OIDC: true
+      TF_VAR_environment: ${{ matrix.env }} 
 
     steps:
       - uses: actions/checkout@v4
