@@ -3,13 +3,13 @@ name: tf-destroy
 on:
   workflow_dispatch:
     inputs:
-      env:
+      scope:
         type: choice
         description: "Environment to destroy"
-        options: [dev, test, prod]
+        options: [dev, test, prod, all]
         default: dev
       confirm:
-        description: "Type DESTROY-<env> to confirm (e.g., DESTROY-dev)"
+        description: "Type DESTROY-<env> or DESTROY-ALL to confirm"
         required: true
         default: "NO"
 
@@ -19,18 +19,29 @@ permissions:
 
 jobs:
   destroy:
-    # hard guard: only run if the confirmation matches exactly
-    if: ${{ inputs.confirm == format('DESTROY-{0}', inputs.env) }}
+    # Guard: exact confirmation required
+    if: ${{ (inputs.scope != 'all' && inputs.confirm == format('DESTROY-{0}', inputs.scope))
+          || (inputs.scope == 'all' && inputs.confirm == 'DESTROY-ALL') }}
 
     runs-on: ubuntu-latest
-    environment: ${{ inputs.env }}   # picks env-scoped secrets/vars
+
+    # Expand to one job per env when scope == all; otherwise just the chosen env
+    strategy:
+      matrix:
+        env: ${{ inputs.scope == 'all'
+          && fromJSON('["dev","test","prod"]')
+          || fromJSON(format('["{0}"]', inputs.scope)) }}
+      max-parallel: 1  # run sequentially; change to 3 if you want parallel
+
+    # Bind each job to its GitHub Environment (secrets/approvals/vars)
+    environment: ${{ matrix.env }}
 
     concurrency:
-      group: terraform-${{ inputs.env }}
+      group: terraform-${{ matrix.env }}
       cancel-in-progress: true
 
     env:
-      ENV: ${{ inputs.env }}
+      ENV: ${{ matrix.env }}
       TF_IN_AUTOMATION: true
       ARM_USE_OIDC: true
 
@@ -59,7 +70,7 @@ jobs:
           TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
         run: terraform destroy -auto-approve -var-file="${ENV}.tfvars"
 
-      # Optional: also delete the state blob after destroy (usually you keep it)
+      # Optional: delete the state blob after destroy (usually keep it)
       # - name: Delete state blob (optional)
       #   run: |
       #     az storage blob delete \
