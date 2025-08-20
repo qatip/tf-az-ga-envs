@@ -4,7 +4,7 @@ resource "azurerm_resource_group" "demo" {
   tags = merge(
     {
       Environment = var.environment
-    }, 
+    },
     var.common_tags
   )
 }
