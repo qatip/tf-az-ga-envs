@@ -3,6 +3,6 @@ resource "azurerm_resource_group" "demo" {
   location = var.location
   tags = {
     Environment = var.environment,
-    Comment     = "test"
+    Comment     = "change 1"
   }
 }
